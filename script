@@ -1,0 +1,95 @@
+#!/bin/bash
+
+filename=$1
+
+if  [[ $filename == *.torrent ]] # Torrent Downloader
+then
+  clear
+  echo "Opening Torrent Downloader..."
+  sleep 1
+  echo "Preparing tools and dependencies..."
+  sleep 1
+
+  if ! command -v aria2c &> /dev/null # Checking if aria2 is installed
+  then
+    echo "Aria2 is missing."
+    echo "Downloading aria2..."
+    sleep 1
+
+    apt-get update -y &> /dev/null
+    echo "Installing aria2..."
+    apt-get install aria2 &> /dev/null
+
+    if ! command -v aria2c &> /dev/null
+    then
+      echo "Unable to download aria2. Please download manually or use the installer script."
+      exit 0
+    else
+      ver=$(aria2c -v | head -1)
+      echo "Successfully installed $ver"
+      sleep 1
+      clear
+    fi
+  fi
+
+  if ! command -v jq &> /dev/null # Checking if jq is installed for parsing dialog response.
+  then
+    echo "jq is not installed."
+    echo "Installing jq..."
+    sleep 1
+    pkg i jq -y &> /dev/null
+
+    if ! command -v jq &> /dev/null
+    then
+      echo "Unable to install jq. Process exited."
+      exit 1
+    else
+      ver=$(jq --version)
+      echo "Successfully install $ver"
+      sleep 1
+      clear
+    fi
+  fi
+
+  clear
+  name=$(echo "$filename" | tr '/' '\n' | tail -1 | sed 's/.torrent//')
+  defaultDir="TorrentDownloads"
+  echo "Default Dirctory: $defaultDir"
+  paths=$(ls /storage/emulated/0 | tr '\n' ',')
+  dir=$defaultDir
+
+  if command -v termux-dialog &> /dev/null
+  then
+    dir=$(termux-dialog checkbox -t "Select a directory to store or cancel to store in default." -v $paths | jq '.values[0]' -r)
+    if [ "$dir" == "null" ]; then
+      dir=$defaultDir
+    else
+      dir=$(echo "$dir" | jq '.text' -r)
+    fi
+  fi
+
+  clear
+  echo "Name: $name"
+  echo "Directory: $dir"
+  echo " "
+  echo " "
+
+  if [ ! -f $filename ]
+  then
+    clear
+    echo "$filename doesn't exists."
+    exit 1
+  fi
+
+  echo "Press Ctrl+C to cancel."
+  aria2c --console-log-level=error --log-level=error --seed-time=0 -d "/storage/emulated/0/$dir" $filename
+  rm $filename -f
+
+  if command -v termux-notification &> /dev/null
+  then
+    termux-notification -t "Torrent Downloader" -c "Successfully downloaded $name. Check $dir"
+  fi
+
+  sleep 1
+  exit 0
+fi
